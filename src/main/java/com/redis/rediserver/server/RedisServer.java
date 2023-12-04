@@ -34,10 +34,7 @@ public class RedisServer {
                 if (connections > MAX_CONNECTIONS) {
                     throw new IOException("Connection failed. Max connections established");
                 }
-                System.out.println("Checking for connections...");
                 Socket clientSocket = serverSocket.accept();
-                System.out.println("Connection established...");
-                System.out.println(clientSocket.getPort() + " " + clientSocket.getLocalPort() + " " + serverSocket.getLocalPort());
                 connections++;
                 Thread thread = new Thread(() -> {
                     try {
