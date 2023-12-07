@@ -1,10 +1,15 @@
 package com.redis.rediserver.server;
 
 import com.redis.rediserver.RequestUtils;
+import com.redis.rediserver.exceptions.MaxConnectionException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class RedisServer {
 
@@ -18,6 +23,10 @@ public class RedisServer {
 
     private static RedisServer redisServer;
 
+    private static final ExecutorService executorService = Executors.newCachedThreadPool();
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(RedisServer.class);
+
     public static RedisServer getInstance() throws Exception {
         if (redisServer == null) {
             redisServer = new RedisServer();
@@ -29,25 +38,27 @@ public class RedisServer {
         System.out.println("Server started");
         while (true) {
             try {
-                // it waits for the connection from client and once received
-                // terminates
-                if (connections > MAX_CONNECTIONS) {
-                    throw new IOException("Connection failed. Max connections established");
-                }
                 Socket clientSocket = serverSocket.accept();
                 connections++;
-                Thread thread = new Thread(() -> {
+                // it waits for the connection from client and once received terminates
+                if (connections > MAX_CONNECTIONS) {
+                    clientSocket.close();
+                    throw new MaxConnectionException("Connection failed. Max connections established");
+                }
+                // this will check, if fewer threads are running than configured
+                // if yes, creates a new thread with this as first task and start running it.
+                executorService.execute(() -> {
                     try {
-                        System.out.println("Thread is getting created " + this);
                         handleClientConnection(clientSocket);
                     } catch (Exception e) {
                         throw new RuntimeException(e);
                     }
                 });
-                thread.setName("handling connection : " + connections);
-                thread.start();
+            } catch (MaxConnectionException exception) {
+                connections--;
+                exception.printStackTrace();
             } catch (Exception e) {
-                System.out.println("Exception: " + e.getMessage());
+                e.printStackTrace();
                 throw new RuntimeException(e);
             }
         }
@@ -62,6 +73,7 @@ public class RedisServer {
 
     private static void handleClientConnection(Socket clientSocket) throws Exception {
         try {
+            LOGGER.info("Thread executing the request is " + Thread.currentThread().getName());
             InputStream inputStream = clientSocket.getInputStream();
             InputStreamReader inputStreamReader = new InputStreamReader(inputStream);
             BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
@@ -78,7 +90,7 @@ public class RedisServer {
             try {
                 closeSocket(clientSocket);
             } catch (IOException e) {
-                System.out.println("IOException: " + e.getMessage());
+                e.printStackTrace();
             }
         }
     }
