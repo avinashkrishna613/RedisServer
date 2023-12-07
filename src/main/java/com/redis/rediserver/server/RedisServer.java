@@ -47,13 +47,14 @@ public class RedisServer {
                 }
                 // this will check, if fewer threads are running than configured
                 // if yes, creates a new thread with this as first task and start running it.
-                executorService.execute(() -> {
+                Runnable runnable = () -> {
                     try {
                         handleClientConnection(clientSocket);
                     } catch (Exception e) {
                         throw new RuntimeException(e);
                     }
-                });
+                };
+                executorService.execute(runnable);
             } catch (MaxConnectionException exception) {
                 connections--;
                 exception.printStackTrace();
